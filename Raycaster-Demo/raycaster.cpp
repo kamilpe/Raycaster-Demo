@@ -6,9 +6,11 @@
 //
 
 #include "raycaster.h"
+#include "map.h"
 #include <SDL3/SDL.h>
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 namespace {
 
@@ -21,6 +23,26 @@ struct Ray {
 float playerX = 300;
 float playerY = 320;
 float playerAngle = 45;
+
+constexpr int mapAt(const int map[], const int x, const int y) {
+    return map[MAP_WIDTH * y + x];
+}
+
+constexpr int mapAtPos(const int map[], const float x, const float y) {
+    return mapAt(map, x / MAP_GRID_SIZE, y / MAP_GRID_SIZE);
+}
+
+constexpr float degToRadians(const float deg) {
+    return deg * (M_PI/180);
+}
+
+constexpr float calcDistance(const float x1, const float yl, const float x2, const float y2) {
+    return sqrt(pow(x1 - x2, 2) + pow(yl - y2, 2));
+}
+
+constexpr float fishEyeFix(const float distance, const float angle, float rayAngle) {
+    return distance * cosf(rayAngle - angle);
+}
 
 }
 
@@ -43,7 +65,7 @@ void drawMapGrid(SDL_Renderer *renderer)
             
             SDL_SetRenderDrawColor(renderer, 180, 180, 180, SDL_ALPHA_OPAQUE);
             SDL_RenderRect(renderer, &gridBorder);
-            if (mapAt(x,y)) {
+            if (mapAt(map, x,y)) {
                 SDL_SetRenderDrawColor(renderer, 150, 50, 50, SDL_ALPHA_OPAQUE);
                 SDL_RenderFillRect(renderer, &gridInterior);
             }
@@ -101,7 +123,7 @@ void updatePlayer(const SDL_Keycode &key)
     
     if (playerAngle < 0) playerAngle = 359;
     else if (playerAngle >= 360) playerAngle = 0;
-    if (mapAtPos(playerX, playerY))
+    if (mapAtPos(map, playerX, playerY))
     {
         playerX = undoPlayerX;
         playerY = undoPlayerY;
@@ -124,7 +146,7 @@ void calculateRays()
         while (wall == 0) {
             rayX += rayCos;
             rayY += raySin;
-            wall = mapAtPos(rayX, rayY);
+            wall = mapAtPos(map, rayX, rayY);
         }
         rays[i] = {rayX, rayY, currentRayAngle};
         currentRayAngle += rayIncrement;
@@ -140,6 +162,27 @@ void drawRays(SDL_Renderer *renderer)
     }
 }
 
+void drawWallStrip(SDL_Renderer *renderer, const Ray &ray, const SDL_FRect &rect)
+{
+    const int pixelSize = rect.w;
+    const int wallHeight = rect.h / pixelSize;
+    const int textureX = (static_cast<int>((ray.x + ray.y) * wallTexture.width)) % wallTexture.width;
+    
+    for (int i = 0; i < wallHeight; ++i)
+    {
+        const SDL_FRect wallPixel {
+            rect.x,
+            rect.y + pixelSize * i,
+            static_cast<float>(pixelSize),
+            static_cast<float>(pixelSize)
+        };
+        const int textureY = (wallTexture.height * i) / wallHeight;
+        const auto color = wallPalette[wallTexture.bitmap[textureY * wallTexture.width + textureX]];
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, SDL_ALPHA_OPAQUE);
+        SDL_RenderFillRect(renderer, &wallPixel);
+    }
+}
+
 void drawRaycastView(SDL_Renderer *renderer)
 {
     for(int i=0; i<VIEWPORT_WIDTH; ++i)
@@ -148,46 +191,34 @@ void drawRaycastView(SDL_Renderer *renderer)
         const float distance =
         fishEyeFix(calcDistance(playerX, playerY, ray.x, ray.y),
                    degToRadians(playerAngle), ray.angle);
-        
+        const float startX = static_cast<float>(VIEWPORT_X + (VIEWPORT_SCALE*i));
+ 
+        // Wall
         const float wallHeight =
         std::min(
                  (MAP_GRID_SIZE * (VIEWPORT_WIDTH * VIEWPORT_SCALE)) / distance,
                  static_cast<float>(VIEWPORT_HEIGHT));
-        
-        const float startX = static_cast<float>(VIEWPORT_X + (VIEWPORT_SCALE*i));
-        
-        const SDL_FRect wallRect = {
+        const SDL_FRect wallRect {
             startX, VIEWPORT_Y + (VIEWPORT_HEIGHT - wallHeight) / 2,
             VIEWPORT_SCALE, wallHeight
         };
-        const SDL_FRect ceilRect = {
+        drawWallStrip(renderer, ray, wallRect);
+        
+        // Ceil
+        
+        const SDL_FRect ceilRect {
             startX, 0,
             VIEWPORT_SCALE, VIEWPORT_HEIGHT/2 - wallRect.h/2
         };
-        const SDL_FRect floorRect = {
+        SDL_SetRenderDrawColor(renderer, 128, 128, 200, SDL_ALPHA_OPAQUE);
+        SDL_RenderFillRect(renderer, &ceilRect);
+               
+        // Floor
+        
+        const SDL_FRect floorRect {
             startX, wallRect.y + wallRect.h,
             VIEWPORT_SCALE, VIEWPORT_HEIGHT - (ceilRect.h + wallRect.h)
         };
-        
-        // ceil
-        SDL_SetRenderDrawColor(renderer, 128, 128, 200, SDL_ALPHA_OPAQUE);
-        SDL_RenderFillRect(renderer, &ceilRect);
-        
-        // wall
-        switch(mapAtPos(ray.x,ray.y)) {
-            case 1:
-                SDL_SetRenderDrawColor(renderer, 200, 60, 60, SDL_ALPHA_OPAQUE);
-                break;
-            case 2:
-                SDL_SetRenderDrawColor(renderer, 60, 160, 160, SDL_ALPHA_OPAQUE) ;
-                break;
-            case 3:
-                SDL_SetRenderDrawColor(renderer, 60, 60, 160, SDL_ALPHA_OPAQUE);
-                break;
-        }
-        SDL_RenderFillRect(renderer, &wallRect);
-        
-        // floor
         SDL_SetRenderDrawColor(renderer, 0, 90, 0, SDL_ALPHA_OPAQUE);
         SDL_RenderFillRect(renderer, &floorRect);
     }
