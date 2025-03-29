@@ -168,18 +168,19 @@ void drawRays(SDL_Renderer *renderer)
     }
 }
 
-void drawWallStrip(SDL_Renderer *renderer, const Ray &ray, const SDL_FRect &rect)
+void drawWallStrip(SDL_Renderer *renderer, const Ray &ray, const SDL_FRect &rect, const int realWallHeight)
 {
-    const int pixelSize = rect.w;
-    const int wallHeight = rect.h / pixelSize;
-    
     const int wallWidth = MAP_GRID_SIZE;
     const int wallBlockX = static_cast<int>(ray.x - ray.wallX);
     const int wallBlockY = static_cast<int>(ray.y - ray.wallY);
     const int wallPos = (wallBlockX + wallBlockY) % wallWidth;
     const int textureX = (wallPos * wallTexture.width) / wallWidth;
     
-    for (int i = 0; i < wallHeight; ++i)
+    const int pixelSize = rect.w;
+    
+    const int wallHeight = realWallHeight / pixelSize;
+    const int clippedWallHeight = rect.h / pixelSize;
+    for (int i = 0; i < clippedWallHeight; ++i)
     {
         const SDL_FRect wallPixel {
             rect.x,
@@ -187,7 +188,12 @@ void drawWallStrip(SDL_Renderer *renderer, const Ray &ray, const SDL_FRect &rect
             static_cast<float>(pixelSize),
             static_cast<float>(pixelSize)
         };
-        const int textureY = (wallTexture.height * i) / wallHeight;
+        
+        int alteredI = i;
+        if (clippedWallHeight < wallHeight) {
+            alteredI += (wallHeight - clippedWallHeight)/2;
+        }
+        const int textureY = (wallTexture.height * alteredI) / wallHeight;
         const auto color = wallPalette[wallTexture.bitmap[textureY * wallTexture.width + textureX]];
         SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, SDL_ALPHA_OPAQUE);
         SDL_RenderFillRect(renderer, &wallPixel);
@@ -205,15 +211,13 @@ void drawRaycastView(SDL_Renderer *renderer)
         const float startX = static_cast<float>(VIEWPORT_X + (VIEWPORT_SCALE*i));
  
         // Wall
-        const float wallHeight =
-        std::min(
-                 (MAP_GRID_SIZE * (VIEWPORT_WIDTH * VIEWPORT_SCALE)) / distance,
-                 static_cast<float>(VIEWPORT_HEIGHT));
+        const float wallHeight = (MAP_GRID_SIZE * (VIEWPORT_WIDTH * VIEWPORT_SCALE)) / distance;
+        const float clippedWallHeight = std::min(wallHeight, static_cast<float>(VIEWPORT_HEIGHT));
         const SDL_FRect wallRect {
-            startX, VIEWPORT_Y + (VIEWPORT_HEIGHT - wallHeight) / 2,
-            VIEWPORT_SCALE, wallHeight
+            startX, VIEWPORT_Y + (VIEWPORT_HEIGHT - clippedWallHeight) / 2,
+            VIEWPORT_SCALE, clippedWallHeight
         };
-        drawWallStrip(renderer, ray, wallRect);
+        drawWallStrip(renderer, ray, wallRect, wallHeight);
         
         // Ceil
         
