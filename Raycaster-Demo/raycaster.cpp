@@ -18,6 +18,8 @@ struct Ray {
     float x;
     float y;
     float angle;
+    int wallX;
+    int wallY;
 } rays [VIEWPORT_WIDTH];
 
 float playerX = 300;
@@ -148,7 +150,11 @@ void calculateRays()
             rayY += raySin;
             wall = mapAtPos(map, rayX, rayY);
         }
-        rays[i] = {rayX, rayY, currentRayAngle};
+        rays[i] = {
+            rayX, rayY, currentRayAngle,
+            static_cast<int>(floor(rayX / MAP_GRID_SIZE)) * MAP_GRID_SIZE,
+            static_cast<int>(floor(rayY / MAP_GRID_SIZE)) * MAP_GRID_SIZE
+        };
         currentRayAngle += rayIncrement;
     }
 }
@@ -166,7 +172,12 @@ void drawWallStrip(SDL_Renderer *renderer, const Ray &ray, const SDL_FRect &rect
 {
     const int pixelSize = rect.w;
     const int wallHeight = rect.h / pixelSize;
-    const int textureX = (static_cast<int>((ray.x + ray.y) * wallTexture.width)) % wallTexture.width;
+    
+    const int wallWidth = MAP_GRID_SIZE;
+    const int wallBlockX = static_cast<int>(ray.x - ray.wallX);
+    const int wallBlockY = static_cast<int>(ray.y - ray.wallY);
+    const int wallPos = (wallBlockX + wallBlockY) % wallWidth;
+    const int textureX = (wallPos * wallTexture.width) / wallWidth;
     
     for (int i = 0; i < wallHeight; ++i)
     {

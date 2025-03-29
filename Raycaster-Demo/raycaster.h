@@ -21,7 +21,7 @@ constexpr float PLAYER_SPEED_ROTATION = 4;
 
 constexpr int VIEWPORT_X = MAP_WIDTH * MAP_GRID_SIZE + 1; // next to the map viewport
 constexpr int VIEWPORT_Y = 0;
-constexpr int VIEWPORT_SCALE = 8; // 1 means pixel precision
+constexpr int VIEWPORT_SCALE = 4; // 1 means pixel precision
 constexpr int VIEWPORT_WIDTH = (1280 - VIEWPORT_X) / VIEWPORT_SCALE; // to keep viewport same size as map viewport
 constexpr int VIEWPORT_HEIGHT = MAP_HEIGHT * MAP_GRID_SIZE; // to keep viewport same size as map viewport
 
